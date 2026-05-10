@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Survival PRO MAX</title>
+
+<style>
+body{
+    margin:0;
+    background:black;
+    overflow:hidden;
+    font-family:monospace;
+    color:white;
+    text-align:center;
+}
+
+canvas{
+    background:#111;
+    display:block;
+    margin:auto;
+}
+</style>
+</head>
+
+<body>
+
+<h3>MINI SURVIVAL PRO MAX-bản thử ngiệm.</h3>
+<p>Kéo để di chuyển • Chạm để bắn</p>
+<p> by Game :Trần Văn Tỷ.</p>
+<canvas id="game"></canvas>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight - 80;
+
+// ================= GAME =================
+const Game = {
+    level: 1,
+    score: 0,
+    bullets: [],
+    enemyBullets: [],
+    enemies: [],
+    gameOver: false,
+    levelUpText: 0
+};
+
+// ================= TOUCH =================
+let touchActive = false;
+
+// ================= COLLISION =================
+function isColliding(a,b){
+    return (
+        a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y
+    );
+}
+
+// ================= PLAYER =================
+const Player = {
+    x: canvas.width/2 - 25,
+    y: canvas.height - 70,
+    w: 50,
+    h: 50,
+    lives: 3,
+    maxLives: 3,
+
+    draw(){
+        ctx.fillStyle="cyan";
+        ctx.fillRect(this.x,this.y,this.w,this.h);
+    },
+
+    shoot(){
+        Game.bullets.push({
+            x:this.x + this.w/2 - 3,
+            y:this.y,
+            w:6,
+            h:12,
+            speed:7
+        });
+    },
+
+    hit(){
+        this.lives--;
+    },
+
+    levelUp(){
+        this.maxLives++;
+        this.lives++;
+    }
+};
+
+// ================= BOSS =================
+const Boss = {
+    x: canvas.width/2 - 60,
+    y: 60,
+    w: 120,
+    h: 60,
+    hp: 0,
+    maxHp: 0,
+    speed: 2,
+    shootRate: 0.02,
+    dir: 1,
+   
+    init(){
+        this.maxHp = 5*2+2 + Game.level * 25;
+        this.hp = this.maxHp;
+        this.speed = 2 + Game.level * 0.5;
+        this.shootRate = 0.02 + Game.level * 0.005;
+        this.x = canvas.width/2 - 60;
+    },
+
+    update(){
+        this.x += this.speed * this.dir;
+        if(this.x <= 0 || this.x + this.w >= canvas.width){
+            this.dir *= -1;
+        }
+
+        if(Math.random() < this.shootRate){
+            Game.enemyBullets.push({
+                x:this.x + this.w/2 - 3,
+                y:this.y + this.h,
+                w:6,
+                h:12,
+                speed:4 + Game.level * 0.5
+            });
+        }
+    },
+
+    draw(){
+        ctx.fillStyle="red";
+        ctx.fillRect(this.x,this.y,this.w,this.h);
+    }
+};
+
+// ================= ENEMY =================
+function spawnMiniEnemies(){
+    Game.enemies = [];
+    for(let i=0;i<Game.level/3;i++){
+        Game.enemies.push({
+            x: Math.random()* (canvas.width-40),
+            y: 120 + Math.random()*100,
+            w:40,
+            h:40,
+            dir:2,
+            hp:5
+        });
+    }
+}
+
+function updateMiniEnemies(){
+    for(let i=Game.enemies.length-1;i>=0;i--){
+        let e = Game.enemies[i];
+        e.x += e.dir;
+
+        if(e.x<=0 || e.x+e.w>=canvas.width){
+            e.dir *= -1;
+        }
+
+        if(Math.random()<0.01){
+            Game.enemyBullets.push({
+                x:e.x+e.w/2-3,
+                y:e.y+e.h,
+                w:6,
+                h:12,
+                speed:3
+            });
+        }
+
+        for(let j=Game.bullets.length-1;j>=0;j--){
+            if(isColliding(Game.bullets[j],e)){
+                e.hp--;
+                Game.bullets.splice(j,1);
+
+                if(e.hp<=0){
+                    Game.enemies.splice(i,1);
+                    Game.score += 20;
+                }
+            }
+        }
+    }
+}
+
+function drawMiniEnemies(){
+    ctx.fillStyle="purple";
+    Game.enemies.forEach(e=>{
+        ctx.fillRect(e.x,e.y,e.w,e.h);
+    });
+}
+
+// ================= BULLETS =================
+function updateBullets(){
+
+    for(let i=Game.bullets.length-1;i>=0;i--){
+        let b=Game.bullets[i];
+        b.y -= b.speed;
+
+        if(b.y<0){
+            Game.bullets.splice(i,1);
+            continue;
+        }
+
+        if(isColliding(b,Boss)){
+            Boss.hp--;
+            Game.score += 10 * Game.level;
+            Game.bullets.splice(i,1);
+        }
+    }
+
+    for(let i=Game.enemyBullets.length-1;i>=0;i--){
+        let b=Game.enemyBullets[i];
+        b.y += b.speed;
+
+        if(b.y>canvas.height){
+            Game.enemyBullets.splice(i,1);
+            continue;
+        }
+
+        if(isColliding(b,Player)){
+            Player.hit();
+            Game.enemyBullets.splice(i,1);
+        }
+    }
+}
+
+function drawBullets(){
+    ctx.fillStyle="yellow";
+    Game.bullets.forEach(b=>ctx.fillRect(b.x,b.y,b.w,b.h));
+
+    ctx.fillStyle="orange";
+    Game.enemyBullets.forEach(b=>ctx.fillRect(b.x,b.y,b.w,b.h));
+}
+
+// ================= UI =================
+function drawBar(x,y,w,h,value,max,color){
+    ctx.fillStyle="gray";
+    ctx.fillRect(x,y,w,h);
+
+    ctx.fillStyle=color;
+    ctx.fillRect(x,y,(value/max)*w,h);
+}
+
+function drawUI(){
+    drawBar(20,20,200,15,Boss.hp,Boss.maxHp,"red");
+    drawBar(20,45,150,10,Player.lives,Player.maxLives,"cyan");
+
+    ctx.fillStyle="white";
+    ctx.fillText("Level: "+Game.level,20,80);
+    ctx.fillText("Score: "+Game.score,20,100);
+
+    if(Game.levelUpText>0){
+        ctx.fillStyle="yellow";
+        ctx.font="30px monospace";
+        ctx.fillText("LEVEL UP!",canvas.width/2-100,canvas.height/2);
+        Game.levelUpText--;
+    }
+}
+
+// ================= CHECK =================
+function checkGame(){
+    if(Player.lives<=0){
+        Game.gameOver=true;
+    }
+
+    if(Boss.hp<=0){
+        Game.level++;
+        Player.levelUp();
+        Game.levelUpText = 120;
+        Boss.init();
+
+        if(Game.level % 3 === 0){
+            spawnMiniEnemies();
+        }
+    }
+}
+
+// ================= UPDATE =================
+function update(){
+    Boss.update();
+    updateBullets();
+    updateMiniEnemies();
+    checkGame();
+}
+
+// ================= RENDER =================
+function render(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    Player.draw();
+    Boss.draw();
+    drawMiniEnemies();
+    drawBullets();
+    drawUI();
+}
+
+// ================= GAME LOOP =================
+function gameLoop(){
+    if(!Game.gameOver){
+        update();
+        render();
+        requestAnimationFrame(gameLoop);
+    }else{
+        ctx.fillStyle="white";
+        ctx.font="30px monospace";
+        ctx.fillText("GAME OVER ",canvas.width/2-80,canvas.height/2);
+    }
+}
+
+// ================= TOUCH CONTROL =================
+canvas.addEventListener("touchstart", (e)=>{
+    touchActive = true;
+
+    if(!Game.gameOver){
+        Player.shoot();
+    }
+});
+
+canvas.addEventListener("touchend", ()=>{
+    touchActive = false;
+});
+
+canvas.addEventListener("touchmove", (e)=>{
+    if(!touchActive) return;
+
+    let t = e.touches[0];
+
+    Player.x = t.clientX - Player.w/2;
+    Player.y = t.clientY - Player.h/2;
+
+    // giới hạn màn hình
+    if(Player.x < 0) Player.x = 0;
+    if(Player.x + Player.w > canvas.width) Player.x = canvas.width - Player.w;
+
+    if(Player.y < 0) Player.y = 0;
+    if(Player.y + Player.h > canvas.height) Player.y = canvas.height - Player.h;
+});
+
+// ================= START =================
+Boss.init();
+gameLoop();
+
+</script>
+
+</body>
+</html>
